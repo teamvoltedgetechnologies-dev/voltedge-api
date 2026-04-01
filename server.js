@@ -7,17 +7,27 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-const allowedOrigins = (process.env.FRONTEND_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://voltedge-website.onrender.com')
+const allowedOrigins = (process.env.FRONTEND_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://voltedge-website.onrender.com,https://voltedge-frontend-o2duj7bkb.vercel.app')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // 1. Allow no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // 2. Allow if explicitly listed in our origins array
+    const isAllowed = allowedOrigins.includes(origin);
+    
+    // 3. Allow any Vercel subdomain if not in production mode OR if explicitly safe
+    const isVercel = origin.endsWith('.vercel.app');
+    
+    if (isAllowed || isVercel) {
       callback(null, true);
     } else {
-      callback(new Error(`CORS policy blocked origin ${origin}`));
+      console.warn(`❌ CORS Blocked: Origin ${origin} is not in the allowed list.`);
+      callback(new Error(`CORS policy blocked access from origin ${origin}`));
     }
   },
   credentials: true,
