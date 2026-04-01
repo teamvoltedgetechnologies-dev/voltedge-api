@@ -110,12 +110,9 @@ router.post('/contact/request-otp', async (req, res) => {
                     subject: `VoltEdge Security: Your Verification Code`,
                     text: `Hello,\n\nYour 6-digit VoltEdge verification code to authorize your contact submission is: ${generatedOtp}\n\nThis code will expire in 10 minutes.\n\nThank you,\nVoltEdge Technologies`
                 };
-                await transporter.sendMail(mailOptions);
-                console.log(`📧 Generated OTP sent to ${email}`);
-            } catch (emailErr) {
-                console.warn(`⚠️ Email sending failed (non-blocking): ${emailErr.message}`);
-                // Continue - OTP is saved to database, user can still verify
-            }
+                transporter.sendMail(mailOptions)
+                    .then(() => console.log(`📧 Generated OTP sent to ${email}`))
+                    .catch(emailErr => console.warn(`⚠️ Email sending failed (non-blocking): ${emailErr.message}`));
         } else {
             console.log(`ℹ️ Email credentials not set. OTP generated for testing: ${generatedOtp}`);
         }
@@ -171,12 +168,9 @@ router.post('/contact/verify-otp', async (req, res) => {
                           `Subject: ${inquiryData.subject}\n\n` +
                           `Message Content:\n${inquiryData.message}\n\n--\n(This lead log was fully secured via OTP and stored inside MongoDB).`
                 };
-                await transporter.sendMail(mailOptions);
-                console.log(`📧 Admin notification sent for lead: ${inquiryData.email}`);
-            } catch (emailErr) {
-                console.warn(`⚠️ Admin email sending failed (non-blocking): ${emailErr.message}`);
-                // Continue - inquiry is already saved
-            }
+                transporter.sendMail(mailOptions)
+                    .then(() => console.log(`📧 Admin notification sent for lead: ${inquiryData.email}`))
+                    .catch(emailErr => console.warn(`⚠️ Admin email sending failed (non-blocking): ${emailErr.message}`));
         } else {
             console.log(`ℹ️ Email credentials not configured. Inquiry saved without notification.`);
         }
