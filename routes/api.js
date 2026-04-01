@@ -103,16 +103,15 @@ router.post('/contact/request-otp', async (req, res) => {
 
         // Send OTP email using Nodemailer (non-blocking - don't fail if email fails)
         if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-            try {
-                const mailOptions = {
-                    from: process.env.EMAIL_USER,
-                    to: email,
-                    subject: `VoltEdge Security: Your Verification Code`,
-                    text: `Hello,\n\nYour 6-digit VoltEdge verification code to authorize your contact submission is: ${generatedOtp}\n\nThis code will expire in 10 minutes.\n\nThank you,\nVoltEdge Technologies`
-                };
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log(`📧 Generated OTP sent to ${email}`))
-                    .catch(emailErr => console.warn(`⚠️ Email sending failed (non-blocking): ${emailErr.message}`));
+            const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: email,
+                subject: `VoltEdge Security: Your Verification Code`,
+                text: `Hello,\n\nYour 6-digit VoltEdge verification code to authorize your contact submission is: ${generatedOtp}\n\nThis code will expire in 10 minutes.\n\nThank you,\nVoltEdge Technologies`
+            };
+            transporter.sendMail(mailOptions)
+                .then(() => console.log(`📧 Generated OTP sent to ${email}`))
+                .catch(emailErr => console.warn(`⚠️ Email sending failed (non-blocking): ${emailErr.message}`));
         } else {
             console.log(`ℹ️ Email credentials not set. OTP generated for testing: ${generatedOtp}`);
         }
@@ -156,21 +155,20 @@ router.post('/contact/verify-otp', async (req, res) => {
 
         // 3. Dispatch official email alert to admin (non-blocking)
         if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-            try {
-                const mailOptions = {
-                    from: process.env.EMAIL_USER,
-                    to: process.env.EMAIL_USER, // Admin
-                    replyTo: inquiryData.email,
-                    subject: `VoltEdge Valid Lead: ${inquiryData.subject}`,
-                    text: `OTP-Verified Lead from the VoltEdge Interface.\n\n` + 
-                          `Client Name: ${inquiryData.name}\n` +
-                          `Client Email: ${inquiryData.email}\n` + 
-                          `Subject: ${inquiryData.subject}\n\n` +
-                          `Message Content:\n${inquiryData.message}\n\n--\n(This lead log was fully secured via OTP and stored inside MongoDB).`
-                };
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log(`📧 Admin notification sent for lead: ${inquiryData.email}`))
-                    .catch(emailErr => console.warn(`⚠️ Admin email sending failed (non-blocking): ${emailErr.message}`));
+            const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: process.env.EMAIL_USER, // Admin
+                replyTo: inquiryData.email,
+                subject: `VoltEdge Valid Lead: ${inquiryData.subject}`,
+                text: `OTP-Verified Lead from the VoltEdge Interface.\n\n` + 
+                      `Client Name: ${inquiryData.name}\n` +
+                      `Client Email: ${inquiryData.email}\n` + 
+                      `Subject: ${inquiryData.subject}\n\n` +
+                      `Message Content:\n${inquiryData.message}\n\n--\n(This lead log was fully secured via OTP and stored inside MongoDB).`
+            };
+            transporter.sendMail(mailOptions)
+                .then(() => console.log(`📧 Admin notification sent for lead: ${inquiryData.email}`))
+                .catch(emailErr => console.warn(`⚠️ Admin email sending failed (non-blocking): ${emailErr.message}`));
         } else {
             console.log(`ℹ️ Email credentials not configured. Inquiry saved without notification.`);
         }
