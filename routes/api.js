@@ -116,12 +116,19 @@ router.post('/contact/request-otp', async (req, res) => {
                 await transporter.sendMail(mailOptions);
                 console.log(`📧 Generated OTP sent to ${email}`);
             } catch (emailErr) {
-                console.error(`❌ Email sending failed: ${emailErr.message}`);
-                // In production, we should return an error if the email fails
-                return res.status(500).json({ error: 'Failed to send verification code. Please check the email service configuration.' });
+                console.error(`❌ Email sending failed for ${email}:`, emailErr);
+                // Return a clear error if the email fails
+                return res.status(500).json({ 
+                    error: 'Failed to send verification code.',
+                    details: emailErr.message,
+                    suggestion: 'Please verify your SMTP configuration and credentials.'
+                });
             }
         } else {
-            console.warn(`ℹ️ Email credentials not set. OTP generated for testing: ${generatedOtp}`);
+            console.warn(`ℹ️ Email credentials (EMAIL_USER/EMAIL_PASS) are missing. OTP generated for testing: ${generatedOtp}`);
+            if (process.env.NODE_ENV === 'production') {
+                return res.status(500).json({ error: 'Email service not configured. Please contact administrator.' });
+            }
         }
 
         const responsePayload = { message: 'Verification code dispatched. Check your email.' };
