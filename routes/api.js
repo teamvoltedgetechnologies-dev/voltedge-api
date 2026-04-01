@@ -35,9 +35,11 @@ router.post('/admin/login', (req, res) => {
     }
 });
 
-// Handle Email Setup
+// Handle Email Setup with robust SMTP config
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // Use SSL/TLS
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
@@ -101,19 +103,25 @@ router.post('/contact/request-otp', async (req, res) => {
         });
         await newOtpEntry.save();
 
-        // Send OTP email using Nodemailer (non-blocking - don't fail if email fails)
+        // Send OTP email using Nodemailer (Awaiting to catch failures)
         if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
             const mailOptions = {
-                from: process.env.EMAIL_USER,
+                from: `"VoltEdge Security" <${process.env.EMAIL_USER}>`,
                 to: email,
                 subject: `VoltEdge Security: Your Verification Code`,
                 text: `Hello,\n\nYour 6-digit VoltEdge verification code to authorize your contact submission is: ${generatedOtp}\n\nThis code will expire in 10 minutes.\n\nThank you,\nVoltEdge Technologies`
             };
-            transporter.sendMail(mailOptions)
-                .then(() => console.log(`📧 Generated OTP sent to ${email}`))
-                .catch(emailErr => console.warn(`⚠️ Email sending failed (non-blocking): ${emailErr.message}`));
+            
+            try {
+                await transporter.sendMail(mailOptions);
+                console.log(`📧 Generated OTP sent to ${email}`);
+            } catch (emailErr) {
+                console.error(`❌ Email sending failed: ${emailErr.message}`);
+                // In production, we should return an error if the email fails
+                return res.status(500).json({ error: 'Failed to send verification code. Please check the email service configuration.' });
+            }
         } else {
-            console.log(`ℹ️ Email credentials not set. OTP generated for testing: ${generatedOtp}`);
+            console.warn(`ℹ️ Email credentials not set. OTP generated for testing: ${generatedOtp}`);
         }
 
         const responsePayload = { message: 'Verification code dispatched. Check your email.' };
@@ -153,10 +161,10 @@ router.post('/contact/verify-otp', async (req, res) => {
         // 2. Clear OTP explicitly to prevent replay
         await Otp.deleteOne({ _id: validOtpEntry._id });
 
-        // 3. Dispatch official email alert to admin (non-blocking)
+        // 3. Dispatch official email alert to admin (non-blocking but logged)
         if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
             const mailOptions = {
-                from: process.env.EMAIL_USER,
+                from: `"VoltEdge Leads" <${process.env.EMAIL_USER}>`,
                 to: process.env.EMAIL_USER, // Admin
                 replyTo: inquiryData.email,
                 subject: `VoltEdge Valid Lead: ${inquiryData.subject}`,
@@ -168,9 +176,9 @@ router.post('/contact/verify-otp', async (req, res) => {
             };
             transporter.sendMail(mailOptions)
                 .then(() => console.log(`📧 Admin notification sent for lead: ${inquiryData.email}`))
-                .catch(emailErr => console.warn(`⚠️ Admin email sending failed (non-blocking): ${emailErr.message}`));
+                .catch(emailErr => console.error(`❌ Admin email sending failed: ${emailErr.message}`));
         } else {
-            console.log(`ℹ️ Email credentials not configured. Inquiry saved without notification.`);
+            console.warn(`ℹ️ Email credentials not configured. Inquiry saved without notification.`);
         }
 
         res.status(201).json({ message: 'Message verified & submitted successfully!', inquiry: savedInquiry });
