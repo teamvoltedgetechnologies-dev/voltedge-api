@@ -38,11 +38,14 @@ router.post('/admin/login', (req, res) => {
 // Handle Email Setup with robust SMTP config
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // Use SSL/TLS
+    port: 587,
+    secure: false, // Use TLS instead of SSL (more accessible on Render)
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
     }
 });
 
