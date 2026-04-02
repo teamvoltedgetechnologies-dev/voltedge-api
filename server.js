@@ -7,7 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-const allowedOrigins = (process.env.FRONTEND_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://voltedge-website.onrender.com,https://voltedge-frontend-o2duj7bkb.vercel.app')
+const allowedOrigins = (process.env.FRONTEND_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://voltedge-website.onrender.com,https://voltedge-frontend-o2duj7bkb.vercel.app,https://voltedge-frontend-xi.vercel.app')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
