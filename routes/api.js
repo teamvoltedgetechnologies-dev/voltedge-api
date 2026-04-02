@@ -3,8 +3,11 @@ const router = express.Router();
 const Product = require('../models/Product');
 const Inquiry = require('../models/Inquiry');
 const Otp = require('../models/Otp');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const jwt = require('jsonwebtoken');
+
+// Initialize Resend with API key
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Admin Auth Middleware
 const authAdmin = (req, res, next) => {
@@ -35,19 +38,8 @@ router.post('/admin/login', (req, res) => {
     }
 });
 
-// Handle Email Setup with robust SMTP config
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // Use TLS instead of SSL (more accessible on Render)
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    },
-    tls: {
-        rejectUnauthorized: false
-    }
-});
+// Email Configuration uses Resend
+// No transporter needed - Resend handles SMTP
 
 // @route   GET /api/products
 // @desc    Get all products
@@ -106,29 +98,29 @@ router.post('/contact/request-otp', async (req, res) => {
         });
         await newOtpEntry.save();
 
-        // Send OTP email using Nodemailer (Awaiting to catch failures)
-        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-            const mailOptions = {
-                from: `"VoltEdge Security" <${process.env.EMAIL_USER}>`,
-                to: email,
-                subject: `VoltEdge Security: Your Verification Code`,
-                text: `Hello,\n\nYour 6-digit VoltEdge verification code to authorize your contact submission is: ${generatedOtp}\n\nThis code will expire in 10 minutes.\n\nThank you,\nVoltEdge Technologies`
-            };
-            
+        // Send OTP email using Resend
+        if (process.env.RESEND_API_KEY) {
             try {
-                await transporter.sendMail(mailOptions);
+                await resend.emails.send({
+                    from: 'VoltEdge Security <onboarding@resend.dev>',
+                    to: email,
+                    subject: `VoltEdge Security: Your Verification Code`,
+                    html: `<p>Hello,</p>
+<p>Your 6-digit VoltEdge verification code to authorize your contact submission is: <strong>${generatedOtp}</strong></p>
+<p>This code will expire in 10 minutes.</p>
+<p>Thank you,<br>VoltEdge Technologies</p>`
+                });
                 console.log(`📧 Generated OTP sent to ${email}`);
             } catch (emailErr) {
                 console.error(`❌ Email sending failed for ${email}:`, emailErr);
-                // Return a clear error if the email fails
                 return res.status(500).json({ 
                     error: 'Failed to send verification code.',
                     details: emailErr.message,
-                    suggestion: 'Please verify your SMTP configuration and credentials.'
+                    suggestion: 'Please verify your RESEND_API_KEY configuration.'
                 });
             }
         } else {
-            console.warn(`ℹ️ Email credentials (EMAIL_USER/EMAIL_PASS) are missing. OTP generated for testing: ${generatedOtp}`);
+            console.warn(`ℹ️ RESEND_API_KEY not configured. OTP generated for testing: ${generatedOtp}`);
             if (process.env.NODE_ENV === 'production') {
                 return res.status(500).json({ error: 'Email service not configured. Please contact administrator.' });
             }
@@ -172,23 +164,24 @@ router.post('/contact/verify-otp', async (req, res) => {
         await Otp.deleteOne({ _id: validOtpEntry._id });
 
         // 3. Dispatch official email alert to admin (non-blocking but logged)
-        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-            const mailOptions = {
-                from: `"VoltEdge Leads" <${process.env.EMAIL_USER}>`,
-                to: process.env.EMAIL_USER, // Admin
+        if (process.env.RESEND_API_KEY) {
+            resend.emails.send({
+                from: 'VoltEdge Leads <onboarding@resend.dev>',
+                to: process.env.ADMIN_EMAIL || 'team.voltedge.technologies@gmail.com',
                 replyTo: inquiryData.email,
                 subject: `VoltEdge Valid Lead: ${inquiryData.subject}`,
-                text: `OTP-Verified Lead from the VoltEdge Interface.\n\n` + 
-                      `Client Name: ${inquiryData.name}\n` +
-                      `Client Email: ${inquiryData.email}\n` + 
-                      `Subject: ${inquiryData.subject}\n\n` +
-                      `Message Content:\n${inquiryData.message}\n\n--\n(This lead log was fully secured via OTP and stored inside MongoDB).`
-            };
-            transporter.sendMail(mailOptions)
+                html: `<p>OTP-Verified Lead from the VoltEdge Interface.</p>
+<p><strong>Client Name:</strong> ${inquiryData.name}</p>
+<p><strong>Client Email:</strong> ${inquiryData.email}</p>
+<p><strong>Subject:</strong> ${inquiryData.subject}</p>
+<p><strong>Message:</strong></p>
+<p>${inquiryData.message}</p>
+<p><em>This lead log was fully secured via OTP and stored inside MongoDB.</em></p>`
+            })
                 .then(() => console.log(`📧 Admin notification sent for lead: ${inquiryData.email}`))
                 .catch(emailErr => console.error(`❌ Admin email sending failed: ${emailErr.message}`));
         } else {
-            console.warn(`ℹ️ Email credentials not configured. Inquiry saved without notification.`);
+            console.warn(`ℹ️ RESEND_API_KEY not configured. Inquiry saved without notification.`);
         }
 
         res.status(201).json({ message: 'Message verified & submitted successfully!', inquiry: savedInquiry });
